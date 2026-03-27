@@ -5,8 +5,8 @@ module tinker_alu_fpu(
     input  [63:0] b,
     input  [5:0]  op,
     output reg [63:0] result,
-    output        a_is_zero,
-    output        a_gt_b_signed
+    output wire a_is_zero,
+    output wire a_gt_b_signed
 );
     localparam ALU_PASS_A = 6'd0;
     localparam ALU_PASS_B = 6'd1;
@@ -43,8 +43,7 @@ module tinker_alu_fpu(
             ALU_ADD   : result = $signed(a) + $signed(b);
             ALU_SUB   : result = $signed(a) - $signed(b);
             ALU_MUL   : result = $signed(a) * $signed(b);
-            ALU_DIV   : result = (b == 64'd0) ? 64'd0 : ($signed(a) / $signed(b));
-
+            ALU_DIV   : result = (b == 64'd0) ? 64'd0 : $signed(a) / $signed(b);
             // TODO
             ALU_FADD  : result = QUIET_NAN;
             ALU_FSUB  : result = QUIET_NAN;

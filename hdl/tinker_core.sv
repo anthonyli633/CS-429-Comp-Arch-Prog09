@@ -91,9 +91,7 @@ module tinker_core(
 
     wire [63:0] pc_plus_4 = pc + 64'd4;
 
-    tinker_memory #(
-        .MEM_SIZE(MEM_SIZE)
-    ) memory (
+    tinker_memory #( .MEM_SIZE(MEM_SIZE) ) memory (
         .clk(clk),
         .inst_addr(pc),
         .inst_word(instruction),
@@ -122,9 +120,7 @@ module tinker_core(
         .lit_sext(lit_sext)
     );
 
-    tinker_reg_file #(
-        .MEM_SIZE(MEM_SIZE)
-    ) reg_file (
+    tinker_reg_file #( .MEM_SIZE(MEM_SIZE) ) reg_file (
         .clk(clk),
         .reset(reset),
         .read_addr_a(rd_idx),
@@ -149,7 +145,6 @@ module tinker_core(
     );
 
     always @(*) begin
-        // Safe defaults.
         rf_write_en        = 1'b0;
         rf_write_addr      = rd_idx;
         rf_write_data      = 64'd0;
@@ -221,7 +216,6 @@ module tinker_core(
                 rf_write_en   = 1'b1;
                 rf_write_data = alu_result;
             end
-
             OP_BR: begin
                 pc_redirect        = 1'b1;
                 pc_redirect_target = rd_data;
@@ -260,7 +254,6 @@ module tinker_core(
                     pc_redirect_target = rd_data;
                 end
             end
-
             OP_MOV_LOAD: begin
                 data_addr          = rs_data + lit_sext;
                 rf_write_en        = 1'b1;
@@ -279,7 +272,6 @@ module tinker_core(
                 data_addr          = rd_data + lit_sext;
                 data_write_data    = rs_data;
             end
-
             OP_ADDF: begin
                 alu_op        = ALU_FADD;
                 alu_a         = rs_data;
@@ -308,7 +300,6 @@ module tinker_core(
                 rf_write_en   = 1'b1;
                 rf_write_data = alu_result;
             end
-
             OP_ADD: begin
                 alu_op        = ALU_ADD;
                 alu_a         = rs_data;
@@ -351,9 +342,10 @@ module tinker_core(
                 rf_write_en   = 1'b1;
                 rf_write_data = alu_result;
             end
-
+            OP_PRIV: begin
+                // no-op for Stage 5
+            end
             default: begin
-                // Illegal/priv/unknown opcode
             end
         endcase
     end

@@ -10,11 +10,6 @@ module tinker_decoder(
     output [63:0] lit_zext,
     output [63:0] lit_sext
 );
-    //   [4:0]   opcode
-    //   [9:5]   rd
-    //   [14:10] rs
-    //   [19:15] rt
-    //   [31:20] L (for the instruction forms that use a 12-bit literal)
     assign opcode   = instruction[4:0];
     assign rd_idx   = instruction[9:5];
     assign rs_idx   = instruction[14:10];

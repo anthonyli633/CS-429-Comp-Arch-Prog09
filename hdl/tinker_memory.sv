@@ -16,24 +16,16 @@ module tinker_memory #(
     wire [31:0] inst_idx = inst_addr[31:0];
     wire [31:0] data_idx = data_addr[31:0];
 
+    // Little-endian packing assumption: bytes[idx+0] is low byte.
     assign inst_word =
         (inst_idx + 32'd3 < MEM_SIZE) ?
-        {bytes[inst_idx + 32'd3],
-         bytes[inst_idx + 32'd2],
-         bytes[inst_idx + 32'd1],
-         bytes[inst_idx + 32'd0]} :
+        {bytes[inst_idx + 32'd3], bytes[inst_idx + 32'd2], bytes[inst_idx + 32'd1], bytes[inst_idx + 32'd0]} :
         32'd0;
 
     assign data_read_data =
         (data_idx + 32'd7 < MEM_SIZE) ?
-        {bytes[data_idx + 32'd7],
-         bytes[data_idx + 32'd6],
-         bytes[data_idx + 32'd5],
-         bytes[data_idx + 32'd4],
-         bytes[data_idx + 32'd3],
-         bytes[data_idx + 32'd2],
-         bytes[data_idx + 32'd1],
-         bytes[data_idx + 32'd0]} :
+        {bytes[data_idx + 32'd7], bytes[data_idx + 32'd6], bytes[data_idx + 32'd5], bytes[data_idx + 32'd4],
+         bytes[data_idx + 32'd3], bytes[data_idx + 32'd2], bytes[data_idx + 32'd1], bytes[data_idx + 32'd0]} :
         64'd0;
 
     always @(posedge clk) begin
