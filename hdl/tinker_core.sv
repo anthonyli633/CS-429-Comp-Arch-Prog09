@@ -265,7 +265,7 @@ module tinker_core(
             end
             OP_MOV_LIT: begin
                 rf_write_en        = 1'b1;
-                rf_write_data      = {lit12, rd_data[51:0]};
+                rf_write_data      = lit_zext;
             end
             OP_MOV_STORE: begin
                 data_write_en      = 1'b1;
@@ -343,7 +343,7 @@ module tinker_core(
                 rf_write_data = alu_result;
             end
             OP_PRIV: begin
-                // no-op for Stage 5
+                // TODO
             end
             default: begin
             end
