@@ -6,7 +6,6 @@ module tb_fp_only;
     integer fails;
     integer i;
 
-    // FP opcodes
     localparam OP_ADDF = 5'h14;
     localparam OP_SUBF = 5'h15;
     localparam OP_MULF = 5'h16;
@@ -17,20 +16,11 @@ module tb_fp_only;
         .reset(reset)
     );
 
-    // clock
     initial begin
         clk = 1'b0;
         forever #5 clk = ~clk;
     end
 
-    // ----------------------------
-    // Instruction encoder
-    // [31:27] opcode
-    // [26:22] rd
-    // [21:17] rs
-    // [16:12] rt
-    // [11:0]  literal
-    // ----------------------------
     function [31:0] enc_rrr;
         input [4:0] opcode;
         input [4:0] rd;
@@ -106,9 +96,7 @@ module tb_fp_only;
         fails = 0;
         reset = 1'b0;
 
-        // --------------------------------
         // TEST 1: ADDF 1.5 + 1.5 = 3.0
-        // --------------------------------
         clear_prog_region();
         write_inst(64'h2000, enc_rrr(OP_ADDF, 5'd1, 5'd2, 5'd3));
         do_reset();
@@ -119,9 +107,7 @@ module tb_fp_only;
         @(posedge clk); #1;
         expect64("ADDF basic", uut.reg_file.registers[1], 64'h4008_0000_0000_0000); // 3.0
 
-        // --------------------------------
         // TEST 2: SUBF 5.5 - 2.25 = 3.25
-        // --------------------------------
         clear_prog_region();
         write_inst(64'h2000, enc_rrr(OP_SUBF, 5'd4, 5'd5, 5'd6));
         do_reset();
@@ -132,9 +118,7 @@ module tb_fp_only;
         @(posedge clk); #1;
         expect64("SUBF basic", uut.reg_file.registers[4], 64'h400A_0000_0000_0000); // 3.25
 
-        // --------------------------------
         // TEST 3: MULF 2.5 * 4.0 = 10.0
-        // --------------------------------
         clear_prog_region();
         write_inst(64'h2000, enc_rrr(OP_MULF, 5'd7, 5'd8, 5'd9));
         do_reset();
@@ -145,9 +129,7 @@ module tb_fp_only;
         @(posedge clk); #1;
         expect64("MULF basic", uut.reg_file.registers[7], 64'h4024_0000_0000_0000); // 10.0
 
-        // --------------------------------
         // TEST 4: DIVF 7.5 / 2.5 = 3.0
-        // --------------------------------
         clear_prog_region();
         write_inst(64'h2000, enc_rrr(OP_DIVF, 5'd10, 5'd11, 5'd12));
         do_reset();
@@ -158,9 +140,7 @@ module tb_fp_only;
         @(posedge clk); #1;
         expect64("DIVF basic", uut.reg_file.registers[10], 64'h4008_0000_0000_0000); // 3.0
 
-        // --------------------------------
         // TEST 5: +inf + 1.0 = +inf
-        // --------------------------------
         clear_prog_region();
         write_inst(64'h2000, enc_rrr(OP_ADDF, 5'd13, 5'd14, 5'd15));
         do_reset();
@@ -171,9 +151,7 @@ module tb_fp_only;
         @(posedge clk); #1;
         expect64("ADDF inf", uut.reg_file.registers[13], 64'h7FF0_0000_0000_0000);
 
-        // --------------------------------
         // TEST 6: 0.0 / 5.0 = 0.0
-        // --------------------------------
         clear_prog_region();
         write_inst(64'h2000, enc_rrr(OP_DIVF, 5'd16, 5'd17, 5'd18));
         do_reset();
@@ -184,9 +162,7 @@ module tb_fp_only;
         @(posedge clk); #1;
         expect64("DIVF zero", uut.reg_file.registers[16], 64'h0000_0000_0000_0000);
 
-        // --------------------------------
         // TEST 7: 1.0 / 0.0 = +inf
-        // --------------------------------
         clear_prog_region();
         write_inst(64'h2000, enc_rrr(OP_DIVF, 5'd19, 5'd20, 5'd21));
         do_reset();
@@ -197,9 +173,7 @@ module tb_fp_only;
         @(posedge clk); #1;
         expect64("DIVF by zero", uut.reg_file.registers[19], 64'h7FF0_0000_0000_0000);
 
-        // --------------------------------
         // TEST 8: NaN + 1.0 = NaN
-        // --------------------------------
         clear_prog_region();
         write_inst(64'h2000, enc_rrr(OP_ADDF, 5'd22, 5'd23, 5'd24));
         do_reset();

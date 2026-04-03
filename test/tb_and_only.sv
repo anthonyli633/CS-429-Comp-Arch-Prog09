@@ -11,8 +11,6 @@ module tb_and_only;
 
     always #5 clk = ~clk;
 
-    // Format currently assumed by your design:
-    // [31:20] L, [19:15] rt, [14:10] rs, [9:5] rd, [4:0] opcode
     function [31:0] enc_rrr;
         input [4:0] opcode;
         input [4:0] rd;
@@ -39,7 +37,6 @@ module tb_and_only;
     reg [31:0] instr;
 
     initial begin
-        // Load instruction before reset, like the autograder
         instr = enc_rrr(OP_AND, 5'd1, 5'd2, 5'd3);
         put32_le(64'h0000_0000_0000_2000, instr);
 
