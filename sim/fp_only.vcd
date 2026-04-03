@@ -1,5 +1,5 @@
 $date
-	Thu Apr  2 21:46:30 2026
+	Thu Apr  2 22:02:15 2026
 $end
 $version
 	Icarus Verilog
@@ -137,9 +137,7 @@ $scope function is_nan64 $end
 $upscope $end
 $scope function is_zero64 $end
 $upscope $end
-$scope function pack_fp $end
-$upscope $end
-$scope function pack_round64 $end
+$scope function pack_rne64 $end
 $upscope $end
 $scope function shr_sticky56 $end
 $upscope $end

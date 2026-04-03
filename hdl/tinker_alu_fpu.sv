@@ -124,6 +124,7 @@ module tinker_alu_fpu(
         reg [55:0] ex_big, ex_small, ex_res;
         reg [56:0] sum57;
         integer e1, e2, er, sh;
+        integer e_big, e_small;
         begin
             y2 = sub ? {~y[63], y[62:0]} : y;
 
@@ -149,10 +150,10 @@ module tinker_alu_fpu(
                 my = (ey == 0) ? {1'b0, fy} : {1'b1, fy};
 
                 if ((e1 > e2) || ((e1 == e2) && (mx >= my))) begin
-                    e_big = e1; m_big = mx; s_big = sx;
+                    e_big   = e1; m_big = mx; s_big = sx;
                     e_small = e2; m_small = my; s_small = sy;
                 end else begin
-                    e_big = e2; m_big = my; s_big = sy;
+                    e_big   = e2; m_big = my; s_big = sy;
                     e_small = e1; m_small = mx; s_small = sx;
                 end
 
@@ -176,7 +177,6 @@ module tinker_alu_fpu(
                     sr = s_big;
                     if (ex_res == 0) begin
                         fp_addsub64 = 64'd0;
-                        disable fp_addsub64;
                     end
                     while ((ex_res[55] == 1'b0) && (er > -1022)) begin
                         ex_res = ex_res << 1;
@@ -238,7 +238,7 @@ module tinker_alu_fpu(
         reg sx, sy, sr;
         reg [10:0] ex, ey;
         reg [52:0] mx, my;
-        reg [108:0] num;
+        reg [107:0] num;
         reg [55:0] q;
         reg [52:0] rem;
         integer e1, e2, er;
@@ -266,7 +266,7 @@ module tinker_alu_fpu(
                 my = (ey == 0) ? {1'b0, y[51:0]} : {1'b1, y[51:0]};
 
                 er = e1 - e2;
-                num = {mx, 56'd0};
+                num = {mx, 55'd0};
                 q = num / my;
                 rem = num % my;
 
