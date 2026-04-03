@@ -16,7 +16,6 @@ module tinker_memory #(
     wire [31:0] inst_idx = inst_addr[31:0];
     wire [31:0] data_idx = data_addr[31:0];
 
-    // Little-endian packing assumption: bytes[idx+0] is low byte.
     assign inst_word =
         (inst_idx + 32'd3 < MEM_SIZE) ?
         {bytes[inst_idx + 32'd3], bytes[inst_idx + 32'd2], bytes[inst_idx + 32'd1], bytes[inst_idx + 32'd0]} :
