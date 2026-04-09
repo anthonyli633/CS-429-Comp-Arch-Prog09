@@ -1,8 +1,9 @@
 `timescale 1ns/1ps
 
-module tinker_core(
+module tinker_core (
     input clk,
-    input reset
+    input reset,
+    output logic hlt
 );
     localparam MEM_SIZE = 512 * 1024;
 
@@ -54,6 +55,26 @@ module tinker_core(
     localparam ALU_FMUL     = 6'd14;
     localparam ALU_FDIV     = 6'd15;
 
+    localparam S_FETCH      = 4'd0;
+    localparam S_DECODE     = 4'd1;
+    localparam S_EXEC_ALU   = 4'd2;
+    localparam S_WB_ALU     = 4'd3;
+    localparam S_ADDR       = 4'd4;
+    localparam S_MEM_READ   = 4'd5;
+    localparam S_WB_MEM     = 4'd6;
+    localparam S_MEM_WRITE  = 4'd7;
+    localparam S_BRANCH     = 4'd8;
+    localparam S_CALL       = 4'd9;
+    localparam S_RETURN     = 4'd10;
+    localparam S_HALT       = 4'd11;
+
+    reg [3:0]  state, next_state;
+    reg [31:0] ir;
+    reg [63:0] ir_pc;
+    reg [63:0] rd_latch, rs_latch, rt_latch;
+    reg [63:0] ALUOut;
+    reg [63:0] MDR;
+
     wire [63:0] pc;
     wire [31:0] instruction;
 
@@ -79,8 +100,8 @@ module tinker_core(
     reg  [63:0] data_write_data;
     wire [63:0] data_read_data;
 
-    reg         pc_redirect;
-    reg  [63:0] pc_redirect_target;
+    reg         pc_write;
+    reg  [63:0] pc_next;
 
     reg  [5:0]  alu_op;
     reg  [63:0] alu_a;
@@ -88,8 +109,6 @@ module tinker_core(
     wire [63:0] alu_result;
     wire        alu_a_is_zero;
     wire        alu_a_gt_b_signed;
-
-    wire [63:0] pc_plus_4 = pc + 64'd4;
 
     tinker_memory #( .MEM_SIZE(MEM_SIZE) ) memory (
         .clk(clk),
@@ -104,13 +123,13 @@ module tinker_core(
     tinker_fetch fetch (
         .clk(clk),
         .reset(reset),
-        .redirect(pc_redirect),
-        .redirect_target(pc_redirect_target),
+        .pc_write(pc_write),
+        .pc_next(pc_next),
         .pc(pc)
     );
 
     tinker_decoder decoder (
-        .instruction(instruction),
+        .instruction(ir),
         .opcode(opcode),
         .rd_idx(rd_idx),
         .rs_idx(rs_idx),
@@ -145,208 +164,206 @@ module tinker_core(
     );
 
     always @(*) begin
-        rf_write_en        = 1'b0;
-        rf_write_addr      = rd_idx;
-        rf_write_data      = 64'd0;
+        hlt              = (state == S_HALT);
+        next_state       = state;
 
-        data_write_en      = 1'b0;
-        data_addr          = 64'd0;
-        data_write_data    = 64'd0;
+        rf_write_en      = 1'b0;
+        rf_write_addr    = rd_idx;
+        rf_write_data    = 64'd0;
 
-        pc_redirect        = 1'b0;
-        pc_redirect_target = 64'd0;
+        data_write_en    = 1'b0;
+        data_addr        = 64'd0;
+        data_write_data  = 64'd0;
 
-        alu_op             = ALU_PASS_A;
-        alu_a              = 64'd0;
-        alu_b              = 64'd0;
+        pc_write         = 1'b0;
+        pc_next          = pc;
 
-        case (opcode)
-            OP_AND: begin
-                alu_op        = ALU_AND;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+        alu_op           = ALU_PASS_A;
+        alu_a            = 64'd0;
+        alu_b            = 64'd0;
+
+        case (state)
+            S_FETCH: begin
+                pc_write   = 1'b1;
+                pc_next    = pc + 64'd4;
+                next_state = S_DECODE;
             end
-            OP_OR: begin
-                alu_op        = ALU_OR;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+
+            S_DECODE: begin
+                if (opcode == OP_PRIV && lit12 == 12'h000)
+                    next_state = S_HALT;
+                else if (opcode == OP_MOV_LOAD || opcode == OP_MOV_STORE)
+                    next_state = S_ADDR;
+                else if (opcode == OP_BR || opcode == OP_BRR_REG || opcode == OP_BRR_LIT ||
+                         opcode == OP_BRNZ || opcode == OP_BRGT)
+                    next_state = S_BRANCH;
+                else if (opcode == OP_CALL)
+                    next_state = S_CALL;
+                else if (opcode == OP_RETURN)
+                    next_state = S_RETURN;
+                else
+                    next_state = S_EXEC_ALU;
             end
-            OP_XOR: begin
-                alu_op        = ALU_XOR;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+
+            S_EXEC_ALU: begin
+                case (opcode)
+                    OP_AND:    begin alu_op = ALU_AND;  alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_OR:     begin alu_op = ALU_OR;   alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_XOR:    begin alu_op = ALU_XOR;  alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_NOT:    begin alu_op = ALU_NOT;  alu_a = rs_latch; end
+                    OP_SHFTR:  begin alu_op = ALU_SHR;  alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_SHFTRI: begin alu_op = ALU_SHR;  alu_a = rd_latch; alu_b = lit_zext; end
+                    OP_SHFTL:  begin alu_op = ALU_SHL;  alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_SHFTLI: begin alu_op = ALU_SHL;  alu_a = rd_latch; alu_b = lit_zext; end
+                    OP_MOV_REG:begin alu_op = ALU_PASS_A; alu_a = rs_latch; end
+                    OP_MOV_LIT:begin alu_op = ALU_PASS_A; alu_a = lit_zext; end
+                    OP_ADDF:   begin alu_op = ALU_FADD; alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_SUBF:   begin alu_op = ALU_FSUB; alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_MULF:   begin alu_op = ALU_FMUL; alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_DIVF:   begin alu_op = ALU_FDIV; alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_ADD:    begin alu_op = ALU_ADD;  alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_ADDI:   begin alu_op = ALU_ADD;  alu_a = rd_latch; alu_b = lit_zext; end
+                    OP_SUB:    begin alu_op = ALU_SUB;  alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_SUBI:   begin alu_op = ALU_SUB;  alu_a = rd_latch; alu_b = lit_zext; end
+                    OP_MUL:    begin alu_op = ALU_MUL;  alu_a = rs_latch; alu_b = rt_latch; end
+                    OP_DIV:    begin alu_op = ALU_DIV;  alu_a = rs_latch; alu_b = rt_latch; end
+                    default:   begin alu_op = ALU_PASS_A; alu_a = 64'd0; end
+                endcase
+                next_state = S_WB_ALU;
             end
-            OP_NOT: begin
-                alu_op        = ALU_NOT;
-                alu_a         = rs_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_SHFTR: begin
-                alu_op        = ALU_SHR;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_SHFTRI: begin
-                alu_op        = ALU_SHR;
-                alu_a         = rd_data;
-                alu_b         = lit_zext;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_SHFTL: begin
-                alu_op        = ALU_SHL;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_SHFTLI: begin
-                alu_op        = ALU_SHL;
-                alu_a         = rd_data;
-                alu_b         = lit_zext;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_BR: begin
-                pc_redirect        = 1'b1;
-                pc_redirect_target = rd_data;
-            end
-            OP_BRR_REG: begin
-                pc_redirect        = 1'b1;
-                pc_redirect_target = pc + rd_data;
-            end
-            OP_BRR_LIT: begin
-                pc_redirect        = 1'b1;
-                pc_redirect_target = pc + lit_sext;
-            end
-            OP_BRNZ: begin
-                if (rs_data != 64'd0) begin
-                    pc_redirect        = 1'b1;
-                    pc_redirect_target = rd_data;
+
+            S_WB_ALU: begin
+                if (opcode != OP_PRIV) begin
+                    rf_write_en   = 1'b1;
+                    rf_write_addr = rd_idx;
+                    rf_write_data = ALUOut;
                 end
+                next_state = S_FETCH;
             end
-            OP_CALL: begin
-                data_write_en      = 1'b1;
-                data_addr          = sp_data - 64'd8;
-                data_write_data    = pc_plus_4;
-                pc_redirect        = 1'b1;
-                pc_redirect_target = rd_data;
+
+            S_ADDR: begin
+                alu_op = ALU_ADD;
+                if (opcode == OP_MOV_LOAD)
+                    alu_a = rs_latch;
+                else
+                    alu_a = rd_latch;
+                alu_b = lit_sext;
+
+                if (opcode == OP_MOV_LOAD)
+                    next_state = S_MEM_READ;
+                else
+                    next_state = S_MEM_WRITE;
             end
-            OP_RETURN: begin
-                data_addr          = sp_data - 64'd8;
-                pc_redirect        = 1'b1;
-                pc_redirect_target = data_read_data;
+
+            S_MEM_READ: begin
+                data_addr   = ALUOut;
+                next_state  = S_WB_MEM;
             end
-            OP_BRGT: begin
-                alu_a = rs_data;
-                alu_b = rt_data;
-                if (alu_a_gt_b_signed) begin
-                    pc_redirect        = 1'b1;
-                    pc_redirect_target = rd_data;
-                end
-            end
-            OP_MOV_LOAD: begin
-                data_addr          = rs_data + lit_sext;
-                rf_write_en        = 1'b1;
-                rf_write_data      = data_read_data;
-            end
-            OP_MOV_REG: begin
-                rf_write_en        = 1'b1;
-                rf_write_data      = rs_data;
-            end
-            OP_MOV_LIT: begin
-                rf_write_en        = 1'b1;
-                rf_write_data      = lit_zext;
-            end
-            OP_MOV_STORE: begin
-                data_write_en      = 1'b1;
-                data_addr          = rd_data + lit_sext;
-                data_write_data    = rs_data;
-            end
-            OP_ADDF: begin
-                alu_op        = ALU_FADD;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
+
+            S_WB_MEM: begin
                 rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+                rf_write_addr = rd_idx;
+                rf_write_data = MDR;
+                next_state    = S_FETCH;
             end
-            OP_SUBF: begin
-                alu_op        = ALU_FSUB;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+
+            S_MEM_WRITE: begin
+                data_addr       = ALUOut;
+                data_write_en   = 1'b1;
+                data_write_data = rs_latch;
+                next_state      = S_FETCH;
             end
-            OP_MULF: begin
-                alu_op        = ALU_FMUL;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+
+            S_BRANCH: begin
+                case (opcode)
+                    OP_BR: begin
+                        pc_write = 1'b1;
+                        pc_next  = rd_latch;
+                    end
+                    OP_BRR_REG: begin
+                        pc_write = 1'b1;
+                        pc_next  = ir_pc + rd_latch;
+                    end
+                    OP_BRR_LIT: begin
+                        pc_write = 1'b1;
+                        pc_next  = ir_pc + lit_sext;
+                    end
+                    OP_BRNZ: begin
+                        if (rs_latch != 64'd0) begin
+                            pc_write = 1'b1;
+                            pc_next  = rd_latch;
+                        end
+                    end
+                    OP_BRGT: begin
+                        if ($signed(rs_latch) > $signed(rt_latch)) begin
+                            pc_write = 1'b1;
+                            pc_next  = rd_latch;
+                        end
+                    end
+                    default: begin end
+                endcase
+                next_state = S_FETCH;
             end
-            OP_DIVF: begin
-                alu_op        = ALU_FDIV;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+
+            S_CALL: begin
+                data_write_en   = 1'b1;
+                data_addr       = sp_data - 64'd8;
+                data_write_data = ir_pc + 64'd4;
+                pc_write        = 1'b1;
+                pc_next         = rd_latch;
+                next_state      = S_FETCH;
             end
-            OP_ADD: begin
-                alu_op        = ALU_ADD;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+
+            S_RETURN: begin
+                data_addr  = sp_data - 64'd8;
+                pc_write   = 1'b1;
+                pc_next    = data_read_data;
+                next_state = S_FETCH;
             end
-            OP_ADDI: begin
-                alu_op        = ALU_ADD;
-                alu_a         = rd_data;
-                alu_b         = lit_zext;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
+
+            S_HALT: begin
+                next_state = S_HALT;
             end
-            OP_SUB: begin
-                alu_op        = ALU_SUB;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_SUBI: begin
-                alu_op        = ALU_SUB;
-                alu_a         = rd_data;
-                alu_b         = lit_zext;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_MUL: begin
-                alu_op        = ALU_MUL;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_DIV: begin
-                alu_op        = ALU_DIV;
-                alu_a         = rs_data;
-                alu_b         = rt_data;
-                rf_write_en   = 1'b1;
-                rf_write_data = alu_result;
-            end
-            OP_PRIV: begin
-                // TODO
-            end
+
             default: begin
+                next_state = S_FETCH;
             end
         endcase
+    end
+
+    always @(posedge clk) begin
+        if (reset) begin
+            state    <= S_FETCH;
+            ir       <= 32'd0;
+            ir_pc    <= 64'd0;
+            rd_latch <= 64'd0;
+            rs_latch <= 64'd0;
+            rt_latch <= 64'd0;
+            ALUOut   <= 64'd0;
+            MDR      <= 64'd0;
+        end else begin
+            state <= next_state;
+            case (state)
+                S_FETCH: begin
+                    ir    <= instruction;
+                    ir_pc <= pc;
+                end
+                S_DECODE: begin
+                    rd_latch <= rd_data;
+                    rs_latch <= rs_data;
+                    rt_latch <= rt_data;
+                end
+                S_EXEC_ALU: begin
+                    ALUOut <= alu_result;
+                end
+                S_ADDR: begin
+                    ALUOut <= alu_result;
+                end
+                S_MEM_READ: begin
+                    MDR <= data_read_data;
+                end
+                default: begin end
+            endcase
+        end
     end
 endmodule
