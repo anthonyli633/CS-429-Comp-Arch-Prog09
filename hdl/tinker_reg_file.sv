@@ -30,7 +30,7 @@ module tinker_reg_file #(
                 registers[i] <= 64'd0;
             registers[31] <= MEM_SIZE;
         end else begin
-            if (write_en && (write_addr != 5'd0))
+            if (write_en)
                 registers[write_addr] <= write_data;
             registers[0] <= 64'd0;
         end
