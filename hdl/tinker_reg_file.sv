@@ -32,7 +32,6 @@ module tinker_reg_file #(
         end else begin
             if (write_en)
                 registers[write_addr] <= write_data;
-            registers[0] <= 64'd0;
         end
     end
 endmodule
