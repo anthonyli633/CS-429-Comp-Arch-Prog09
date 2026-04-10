@@ -33,19 +33,13 @@ module tb_new;
         .hlt(hlt)
     );
 
-    // ----------------------------
-    // Clock
-    // ----------------------------
     initial begin
         clk = 1'b0;
         forever #5 clk = ~clk;
     end
 
-    // ----------------------------
-    // Encoders
     // Instruction format:
     // [31:27] opcode [26:22] rd [21:17] rs [16:12] rt [11:0] lit
-    // ----------------------------
     function [31:0] enc_rrr;
         input [4:0] opcode, rd, rs, rt;
         begin
@@ -99,9 +93,6 @@ module tb_new;
         end
     endfunction
 
-    // ----------------------------
-    // Memory helpers
-    // ----------------------------
     task write_inst;
         input [63:0] addr;
         input [31:0] inst;
@@ -152,9 +143,6 @@ module tb_new;
         end
     endtask
 
-    // ----------------------------
-    // Test helpers
-    // ----------------------------
     task do_reset;
         begin
             reset = 1'b1;
@@ -208,9 +196,6 @@ module tb_new;
         end
     endtask
 
-    // ----------------------------
-    // Main test sequence
-    // ----------------------------
     initial begin
         fails = 0;
         reset = 1'b0;
@@ -225,9 +210,7 @@ module tb_new;
         $dumpfile("new.vcd");
         $dumpvars(0, tb_new);
 
-        // -------------------------------------------------
         // Test 0: Reset behavior
-        // -------------------------------------------------
         clear_program_region();
         do_reset();
         expect64("reset pc", dut.fetch.pc, 64'h0000_0000_0000_2000);
@@ -235,9 +218,7 @@ module tb_new;
         expect64("reset r0", dut.reg_file.registers[0], 64'd0);
         expect_true("reset hlt low", hlt == 1'b0);
 
-        // -------------------------------------------------
         // Test 1: Halt only
-        // -------------------------------------------------
         clear_program_region();
         write_inst(64'h2000, {OP_PRIV, 5'd0, 5'd0, 5'd0, 12'h000});
         do_reset();
@@ -245,11 +226,8 @@ module tb_new;
         expect_true("halt reached", hlt == 1'b1);
         expect_true("halt multicycle", cycles >= 2);
 
-        // -------------------------------------------------
         // Test 2: Integer ALU program
         // r1=5, r2=7, r3=r1+r2, r3=r3-2, halt
-        // Expect r3 = 10
-        // -------------------------------------------------
         clear_program_region();
         write_inst(64'h2000, enc_rd_lit(OP_ADDI, 5'd1, 12'd5));
         write_inst(64'h2004, enc_rd_lit(OP_ADDI, 5'd2, 12'd7));
@@ -262,10 +240,8 @@ module tb_new;
         expect64("alu result r3", dut.reg_file.registers[3], 64'd10);
         expect_true("alu multicycle", cycles >= 10);
 
-        // -------------------------------------------------
         // Test 3: Store then load through memory
         // r1 = 0x100, r2 = 42, store r2 -> mem[r1], load mem[r1] -> r3
-        // -------------------------------------------------
         clear_program_region();
         write_inst(64'h2000, enc_rd_lit(OP_ADDI, 5'd1, 12'h100));
         write_inst(64'h2004, enc_rd_lit(OP_ADDI, 5'd2, 12'd42));
@@ -277,10 +253,8 @@ module tb_new;
         expect64("store mem[0x100]", read_mem64(64'h100), 64'd42);
         expect64("load result r3", dut.reg_file.registers[3], 64'd42);
 
-        // -------------------------------------------------
         // Test 4: BRNZ taken
         // branch target is preloaded into r4 after reset
-        // -------------------------------------------------
         clear_program_region();
         write_inst(64'h2000, enc_rr(OP_BRNZ, 5'd4, 5'd5));
         write_inst(64'h2004, enc_rd_lit(OP_ADDI, 5'd6, 12'd1));  // should skip
@@ -292,10 +266,8 @@ module tb_new;
         run_until_halt(80);
         expect64("brnz target result", dut.reg_file.registers[6], 64'd9);
 
-        // -------------------------------------------------
         // Test 5: BRR literal
         // jump from 0x2000 to 0x2008
-        // -------------------------------------------------
         clear_program_region();
         write_inst(64'h2000, enc_lit(OP_BRR_LIT, 12'd8));
         write_inst(64'h2004, enc_rd_lit(OP_ADDI, 5'd7, 12'd1));  // should skip
@@ -305,12 +277,8 @@ module tb_new;
         run_until_halt(80);
         expect64("brr literal result", dut.reg_file.registers[7], 64'd9);
 
-        // -------------------------------------------------
         // Test 6: CALL + RETURN
         // call target in r10 is preloaded after reset
-        // function at 0x2010 returns immediately
-        // after return, addi at 0x2004 should execute
-        // -------------------------------------------------
         clear_program_region();
         write_inst(64'h2000, enc_r(OP_CALL, 5'd10));
         write_inst(64'h2004, enc_rd_lit(OP_ADDI, 5'd8, 12'd1));
@@ -322,10 +290,7 @@ module tb_new;
         expect64("call return r8", dut.reg_file.registers[8], 64'd1);
         expect64("call saved return", read_mem64(RET_SLOT), 64'h0000_0000_0000_2004);
 
-        // -------------------------------------------------
-        // Test 7: Basic FP add
-        // r3 = 1.5 + 1.5 = 3.0
-        // -------------------------------------------------
+        // Test 7: FP add
         clear_program_region();
         write_inst(64'h2000, enc_rrr(OP_ADDF, 5'd3, 5'd1, 5'd2));
         write_inst(64'h2004, {OP_PRIV, 5'd0, 5'd0, 5'd0, 12'h000});
