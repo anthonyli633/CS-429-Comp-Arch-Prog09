@@ -1,0 +1,17 @@
+PASS reset pc                 0000000000002000
+PASS reset r31                0000000000080000
+PASS reset r0                 0000000000000000
+PASS reset hlt low           
+PASS halt reached            
+PASS halt multicycle         
+PASS alu halt                
+PASS alu result r3            000000000000000a
+PASS alu multicycle          
+PASS store mem[0x100]         000000000000002a
+PASS load result r3           000000000000002a
+PASS brnz target result       0000000000000009
+PASS brr literal result       0000000000000009
+PASS call return r8           0000000000000001
+PASS call saved return        0000000000002004
+PASS fadd basic               4008000000000000
+ALL MULTICYCLE TESTS PASSED
