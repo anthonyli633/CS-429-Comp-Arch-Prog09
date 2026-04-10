@@ -216,7 +216,7 @@ module tinker_core (
                     OP_SHFTL:  begin alu_op = ALU_SHL;  alu_a = rs_latch; alu_b = rt_latch; end
                     OP_SHFTLI: begin alu_op = ALU_SHL;  alu_a = rd_latch; alu_b = lit_zext; end
                     OP_MOV_REG:begin alu_op = ALU_PASS_A; alu_a = rs_latch; end
-                    OP_MOV_LIT:begin alu_op = ALU_PASS_A; alu_a = lit_zext; end
+                    OP_MOV_LIT:begin alu_op = ALU_PASS_A; alu_a = {rd_latch[63:32], lit12, rd_latch[19:0]}; end
                     OP_ADDF:   begin alu_op = ALU_FADD; alu_a = rs_latch; alu_b = rt_latch; end
                     OP_SUBF:   begin alu_op = ALU_FSUB; alu_a = rs_latch; alu_b = rt_latch; end
                     OP_MULF:   begin alu_op = ALU_FMUL; alu_a = rs_latch; alu_b = rt_latch; end
